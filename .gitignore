@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Python
 /.venv/
+
+# DynamoDB Shared Local DB
+/dynamodb/docker/dynamodb/shared-local-instance.db
