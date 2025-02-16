@@ -18,7 +18,7 @@ export const FormInput = <T extends FieldValues, P extends object = any>(props: 
   const fieldValue = field.value ?? "";
 
   return (
-    <Box className="flex flex-col gap-1">
+    <Box className="flex grow flex-col gap-1">
       {props.label && !isValidElement(props.label) && (
         <Typography className="font-medium" variant="body1">
           {props.label}

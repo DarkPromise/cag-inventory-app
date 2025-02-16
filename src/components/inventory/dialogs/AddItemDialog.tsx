@@ -1,11 +1,11 @@
 "use client";
 
-import React, { startTransition, useActionState, useCallback, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { addItemFA } from "../actions/addItem.ts";
-import { InventoryItem } from "../../../types/Common.ts";
 import { FormProvider, useForm } from "react-hook-form";
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from "@mui/material";
 import FormInput from "../../form/FormInput.tsx";
+import { InventoryItem } from "../types/InventoryTypes.ts";
 
 export interface AddItemDialogProps {
   open: boolean;
@@ -21,7 +21,6 @@ export const AddItemDialog = (props: AddItemDialogProps) => {
 
   /** Form */
   const form = useForm<InventoryItem>({
-    /** Optionally, can use zod to validate the form using schemas */
     defaultValues: {
       name: "",
       price: 0,
@@ -137,6 +136,8 @@ export const AddItemDialog = (props: AddItemDialogProps) => {
                 />
               }
             />
+            {/** Message */}
+            {formMessage && <Box className="text-sm text-red-500">{formMessage}</Box>}
             {/** Buttons */}
             <DialogActions className="flex flex-row p-0 pt-1">
               <Button variant="contained" size="small" onClick={props.fnOnClose}>

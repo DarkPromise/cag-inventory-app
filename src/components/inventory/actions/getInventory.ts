@@ -1,14 +1,17 @@
 "use server";
 
 import "server-only";
-import { InventoryData, InventoryFilters, InventoryItem, ServerActionResponse } from "@/types/Common.ts";
 import { getDynamoDBDocumentClient } from "../../../lib/aws/dynamodb/getDynamoDBDocumentClient.ts";
 import { paginateScan, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import { ServerActionResponse } from "../../../types/Common.ts";
+import { InventoryFilters, InventoryData, InventoryItem } from "../types/InventoryTypes.ts";
+
+/** IMPORTANT:
+ *  It is generally better to use QueryTables instead of Scan for large tables
+ *  But since its a small table, we can use Scan here
+ */
 
 export const getInventory = async ({ dt_from, dt_to, category }: InventoryFilters = {}): Promise<ServerActionResponse<InventoryData>> => {
-  /** DEBUGGING */
-  // console.log("[getInventory] Filters", { dt_from, dt_to, category });
-
   /** Validation */
   if (dt_from && dt_to) {
     if (new Date(dt_from) > new Date(dt_to)) {

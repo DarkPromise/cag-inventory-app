@@ -1,47 +1,76 @@
 "use server";
 
 import "server-only";
-import { InventoryData, InventoryFilters, InventoryItem, ServerActionResponse } from "@/types/Common.ts";
 import { getDynamoDBDocumentClient } from "../../../lib/aws/dynamodb/getDynamoDBDocumentClient.ts";
 import { paginateScan, ScanCommand } from "@aws-sdk/lib-dynamodb";
+import _ from "lodash";
+import { cleanObject } from "../utils/cleanObject.ts";
+import { ServerActionResponse } from "../../../types/Common.ts";
+import { AdditionalInventoryFilters, InventoryData, InventoryItem } from "../types/InventoryTypes.ts";
 
-export const getInventory = async ({ dt_from, dt_to, category, filters, pagination, sort }: InventoryFilters = {}): Promise<
+/** IMPORTANT:
+ *  It is generally better to use QueryTables instead of Scan for large tables
+ *  But since its a small table, we can use Scan here
+ */
+
+export const getInventoryWithFilters = async ({ dt_from, dt_to, filters, pagination, sort }: AdditionalInventoryFilters = {}): Promise<
   ServerActionResponse<InventoryData>
 > => {
-  /** DEBUGGING */
-  console.log("[getInventory] Filters", { dt_from, dt_to, category, filters, pagination, sort });
-
-  /** Validation */
+  /** Validation
+   *  Again, some validation schema should be used to ensure correct data types
+   */
   if (dt_from && dt_to) {
     if (new Date(dt_from) > new Date(dt_to)) {
       return {
         status: 400,
-        message: `[getInventory] Bad Request: dt_from is greater than dt_to`,
+        message: `[getInventoryWithFilters] Bad Request: dt_from is greater than dt_to`,
       };
     }
   }
-  /** If price range is provided, check if both values are valid numbers */
-  // if (price_range && price_range.length === 2) {
-  //   if (!price_range[0] || !price_range[1]) {
+
+  if (filters) {
+    /** If price range is provided, check if both values are valid numbers
+     *  otherwise if only 1 number is provided, return an error
+     */
+    if (filters.price_range) {
+      if (filters.price_range.length === 1) {
+        return {
+          status: 400,
+          message: `[getInventoryWithFilters] Bad Request: price_range must have 2 values`,
+        };
+      }
+      if (!_.isNumber(filters.price_range[0]) || !_.isNumber(filters.price_range[1])) {
+        return {
+          status: 400,
+          message: `[getInventoryWithFilters] Bad Request: price_range values must be numbers`,
+        };
+      }
+    }
+  }
+
+  if (pagination) {
+    if (pagination.page && (pagination.page < 1 || !_.isNumber(pagination.page))) {
+      return {
+        status: 400,
+        message: `[getInventoryWithFilters] Bad Request: pagination page must be greater than 0`,
+      };
+    }
+    if (pagination.limit && (pagination.limit < 1 || !_.isNumber(pagination.limit))) {
+      return {
+        status: 400,
+        message: `[getInventoryWithFilters] Bad Request: pagination limit must be greater than 0`,
+      };
+    }
+  }
+
+  // if (sort) {
+  //   /** If the field is empty but order is provided, its still an error */
+  //   if (!sort.field && sort.order) {
   //     return {
   //       status: 400,
-  //       message: `[getInventory] Bad Request: price_range is invalid`,
+  //       message: `[getInventoryWithFilters] Bad Request: sort field must be provided`,
   //     };
   //   }
-  // }
-
-  // if (pagination && (pagination.limit < 1 || pagination.page < 1)) {
-  //   return {
-  //     status: 400,
-  //     message: `[getInventory] Bad Request: pagination limit and page must be greater than 0`,
-  //   };
-  // }
-
-  // if (sort && !sort.field && !sort.order) {
-  //   return {
-  //     status: 400,
-  //     message: `[getInventory] Bad Request: sort field and sort order must be provided`,
-  //   };
   // }
 
   /** Get the dynamodb document client */
@@ -66,6 +95,38 @@ export const getInventory = async ({ dt_from, dt_to, category, filters, paginati
     },
   });
 
+  /** Check if filters are provided */
+  if (filters) {
+    if (filters.category) {
+      scanCommand.input.FilterExpression += " AND #category = :category";
+      scanCommand.input.ExpressionAttributeNames!["#category"] = "category";
+      scanCommand.input.ExpressionAttributeValues![":category"] = filters.category;
+    }
+
+    if (filters.price_range && filters.price_range.length === 2) {
+      scanCommand.input.FilterExpression += " AND #price BETWEEN :price_from AND :price_to";
+      scanCommand.input.ExpressionAttributeNames!["#price"] = "price";
+      scanCommand.input.ExpressionAttributeValues![":price_from"] = filters.price_range[0];
+      scanCommand.input.ExpressionAttributeValues![":price_to"] = filters.price_range[1];
+    }
+
+    if (filters.name) {
+      scanCommand.input.FilterExpression += " AND contains(#name, :name)";
+      scanCommand.input.ExpressionAttributeNames!["#name"] = "name";
+      scanCommand.input.ExpressionAttributeValues![":name"] = filters.name;
+    }
+  }
+
+  if (pagination) {
+    /** We already did a validation check for this */
+    scanCommand.input.Limit = pagination.limit as number;
+  }
+
+  /** We will do the sorting ourselves (I did not create an index on "category" that would allow for this
+   *  The actual way to do this would be to create an index on "category" with sort keys on the fields, and then use the "QueryCommand"
+   *  with ScanIndexForward set to true or false depending on the sort order
+   */
+
   /** Check if categories are provided */
   // if (categories && categories.length > 0) {
   //   /** Add the categories filter */
@@ -74,42 +135,73 @@ export const getInventory = async ({ dt_from, dt_to, category, filters, paginati
   //   scanCommand.input.ExpressionAttributeValues![":categories"] = categories ?? [];
   // }
 
-  /** Check if price range is provided */
-  // if (price_range && price_range.length === 2) {
-  //   /** Add the price range filter */
-  //   scanCommand.input.FilterExpression += " AND #price BETWEEN :price_from AND :price_to";
-  //   scanCommand.input.ExpressionAttributeNames!["#price"] = "price";
-  //   scanCommand.input.ExpressionAttributeValues![":price_from"] = price_range[0];
-  //   scanCommand.input.ExpressionAttributeValues![":price_to"] = price_range[1];
-  // }
-
   /** Execute the scan command
    *  Paginate N items at a time
    */
   try {
     const paginatedScan = paginateScan({ client: ddbdClient }, scanCommand.input);
     const results: InventoryItem[] = [];
-    for await (const page of paginatedScan) {
-      if (page.Items) {
-        results.push(...(page.Items as InventoryItem[]));
+
+    if (pagination) {
+      if (pagination.page && pagination.page > 0) {
+        /** Iterate through paginatedScan and check if
+         *  the current page is the required page,
+         *  if it is, append the results to the results array and break
+         *  if not, continue to the next page until we reach the required page
+         */
+        let currentPage = 1;
+        for await (const page of paginatedScan) {
+          if (!page.Items) {
+            break;
+          }
+          if (currentPage === pagination.page) {
+            results.push(...(page.Items as InventoryItem[]));
+            break;
+          }
+          currentPage++;
+        }
+      }
+    } else {
+      /** Return all the items */
+      for await (const page of paginatedScan) {
+        if (page.Items) {
+          results.push(...(page.Items as InventoryItem[]));
+        }
       }
     }
+
+    /** Sort if required */
+    if (sort) {
+      const field = sort.field ?? "id";
+      results.sort((a, b) => {
+        if (sort.order === "asc") {
+          return a[field] > b[field] ? 1 : -1;
+        } else {
+          return a[field] < b[field] ? 1 : -1;
+        }
+      });
+    }
+
+    /** Return data */
+    const returnData: InventoryData = {
+      items: results,
+      total_price: results.reduce((acc, item) => acc + item.price, 0),
+      count: results.length,
+      page: pagination?.page ? Number(pagination.page) : undefined,
+      limit: pagination?.limit ? Number(pagination.limit) : undefined,
+    };
 
     /** Return the response */
     return {
       status: 200,
-      message: `[getInventory] Success`,
-      data: {
-        items: results,
-        total_price: results.reduce((acc, item) => acc + item.price, 0),
-      },
+      message: `[getInventoryWithFilters] Success`,
+      data: returnData,
     };
   } catch (error) {
-    console.error("[getInventory] Error", error);
+    console.error("[getInventoryWithFilters] Error", error);
     return {
       status: 500,
-      message: `[getInventory] Internal Server Error`,
+      message: `[getInventoryWithFilters] Internal Server Error`,
     };
   }
 };
-InventoryData, InventoryFilters, InventoryItem, ServerActionResponse, getDynamoDBDocumentClient, paginateScan, ScanCommand, 

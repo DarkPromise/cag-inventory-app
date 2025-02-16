@@ -1,9 +1,10 @@
 "use server";
 
 import "server-only";
-import { InventoryItem, ServerActionResponse } from "../../../types/Common.ts";
+import { ServerActionResponse } from "../../../types/Common.ts";
 import { getDynamoDBDocumentClient } from "../../../lib/aws/dynamodb/getDynamoDBDocumentClient.ts";
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
+import { InventoryItem } from "../types/InventoryTypes.ts";
 
 /**
  * Get an item from the inventory

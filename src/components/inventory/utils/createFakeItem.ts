@@ -1,6 +1,6 @@
-import { InventoryItem } from "../../../types/Common.ts";
 import { v4 } from "uuid";
 import { toISO8601Date } from "../../../utils/toISO8601Date.ts";
+import { InventoryItem } from "../types/InventoryTypes.ts";
 
 const fakeCategories = ["Electronics", "Clothing", "Books", "Toys", "Furniture"];
 const fakeElectronics = ["Phone", "Laptop", "Tablet", "Smartwatch", "Headphones"];

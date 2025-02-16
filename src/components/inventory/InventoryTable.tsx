@@ -1,9 +1,9 @@
 "use client";
 
-import React from "react";
-import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Box, Typography, Button } from "@mui/material";
-import { InventoryData, InventoryFilters, InventoryItem } from "../../types/Common";
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableRow, CircularProgress, Box, Typography } from "@mui/material";
 import { formatCurrency } from "../../utils/formatCurrency.ts";
+import { AdditionalInventoryFilters, InventoryData, InventoryFilters } from "./types/InventoryTypes.ts";
+import { useState } from "react";
 
 const inventoryTableColumns = [
   {
@@ -26,15 +26,16 @@ const inventoryTableColumns = [
 
 export interface InventoryTableProps {
   data: InventoryData;
-  isLoading?: boolean;
+  isFetching?: boolean;
+  pagination?: AdditionalInventoryFilters["pagination"];
 }
 
 export const InventoryTable = (props: InventoryTableProps) => {
   /** Pagination */
-  // const [currentPage, setCurrentPage] = React.useState(props.pagination?.page || 1);
-  // const [itemsPerPage, setItemsPerPage] = React.useState(props.pagination?.limit || 10);
+  const [currentPage, setCurrentPage] = useState(props.pagination?.page || 1);
+  const [itemsPerPage, setItemsPerPage] = useState(props.pagination?.limit || 10);
 
-  return props.isLoading ? (
+  return props.isFetching ? (
     <Box className="text-primary flex flex-grow flex-col items-center justify-center py-10 align-middle">
       <CircularProgress size={"5rem"} />
       <Typography className="pt-4 dark:text-white" variant="body1">

@@ -3,18 +3,17 @@
 import { useEffect, useState } from "react";
 import { getInventory } from "./actions/getInventory.ts";
 import InventoryTable from "./InventoryTable.tsx";
-import { InventoryData, InventoryFilters, InventoryItem } from "../../types/Common.ts";
 import { useQuery } from "@tanstack/react-query";
 import AddItemDialog from "./dialogs/AddItemDialog.tsx";
-import { Box, Button, Checkbox, Chip, MenuItem, Select, SelectChangeEvent, TextField, Typography } from "@mui/material";
+import { Box, Button, Checkbox, Chip, MenuItem, Select, Typography } from "@mui/material";
 import { DesktopDateTimePicker } from "@mui/x-date-pickers";
 import dayjs from "dayjs";
 import clearInventory from "./actions/clearInventory.ts";
-import { addItem } from "./actions/addItem.ts";
-import { createFakeItem } from "./utils/createFakeItem.ts";
-import AdditionalFiltersDialog from "./dialogs/AdditionalFiltersDialog.tsx";
-import { cleanObject } from "./utils/cleanObject.ts";
+import { cleanObject, cleanObject2 } from "./utils/cleanObject.ts";
 import populateInventory from "./actions/populateInventory.ts";
+import { getInventoryWithFilters } from "./actions/getInventoryWithFilters.ts";
+import AdditionalFiltersDialog from "./dialogs/AdditionalFiltersDialog.tsx";
+import { InventoryItem, InventoryFilters, AdditionalInventoryFilters, InventoryData } from "./types/InventoryTypes.ts";
 
 /** Based on the requirements, the inventory system needs to have the following features:
  *  1. CRU Operations (Add, Read, Update)
@@ -32,49 +31,132 @@ export const Inventory = (props: InventoryProps) => {
   const [categories, setCategories] = useState<string[]>([]);
 
   /** Default Filters */
-  const [filters, setFilters] = useState<InventoryFilters>({
+  const [defaultFilters, setDefaultFilters] = useState<InventoryFilters>({
     dt_from: "",
     dt_to: "",
     category: "",
   });
 
-  /** Inventory Data (using react-query) */
+  /** Additional Filters
+   *  The additional filters are used for the bonus task
+   *  They are applied on top of the default filters
+   */
+  const [useAdditionalFilters, setUseAdditionalFilters] = useState(false);
+  const [additionalFilters, setAdditionalFilters] = useState<AdditionalInventoryFilters>({
+    dt_from: "",
+    dt_to: "",
+    filters: {
+      name: "",
+      category: "",
+      price_range: ["", ""],
+    },
+    pagination: {
+      page: "",
+      limit: "",
+    },
+    sort: {
+      field: "",
+      order: "",
+    },
+  });
+
+  /** Query Inventory Data (using react-query)
+   *  IMPORTANT:
+   *  This can be rather costly if the inventory is large, because
+   *  in order to use filters on the server side, we need to use ScanTable in DynamoDB.
+   *  Security wise - we should not be returning the entire inventory.
+   *  Efficiency wise - we should be paginating the results.
+   *  Cost-efficient wise - we would retrieve all the items, cache it (and invalidate it when needed), then filter them on the client side.
+   *  But the requirement here is to query on the server side with filters.
+   *
+   *  IMPORTANT:
+   *  Once the additional filters are toggled, there is no way to go back to the usage of the default query.
+   *  This is because the additional filters are applied on top of the default filters.
+   *  (A reset button could be added to reset the the usage though)
+   */
   const {
-    isLoading,
+    isFetching,
     isError,
+    error,
     data = { items: [], total_price: 0 },
     refetch,
   } = useQuery<InventoryData>({
-    queryKey: ["inventory", filters],
+    queryKey: ["inventory", defaultFilters, additionalFilters, useAdditionalFilters],
     queryFn: async () => {
       /** Validation */
-      if (filters.dt_from && filters.dt_to) {
-        if (new Date(filters.dt_from) > new Date(filters.dt_to)) {
+      if (defaultFilters.dt_from && defaultFilters.dt_to) {
+        if (new Date(defaultFilters.dt_from) > new Date(defaultFilters.dt_to)) {
           /** We could also just swap the dates around to ensure the request always goes through */
           return { items: [], total_price: 0 };
         }
       }
-      /** IMPORTANT:
-       *  This can be rather costly if the inventory is large. Normally we would retrieve
-       *  all the items, then filter them on the client side.
-       *  But the requirement here is to query on the server side with filters.
+
+      /** BONUS TASK
+       *  If we're using the additional filters, we call a different but similar function
+       *  that accepts additional filters.
+       *  Ideally, we should combine the filters and pass them to the same function.
        */
-      const cleanedFilters = cleanObject(filters);
-      const response = await getInventory(cleanedFilters);
-      if (response.status !== 200) {
-        throw new Error(response.message);
-      }
+      if (useAdditionalFilters) {
+        /** Clean the additional filters */
+        const cleanedAdditionalFilters = cleanObject(additionalFilters);
 
-      /** Get the categories */
-      if (response.data && response.data.items.length > 0) {
-        const categories = response.data.items.map((item) => item.category);
-        setCategories([...new Set(categories)]);
+        /** Cast the filters to its correct values
+         *  Just so that the request payload matches the requirements and its types...
+         *  We should just use some sort of schema resolver prior to this, eg. zod or yup
+         */
+        if (cleanedAdditionalFilters.filters) {
+          if (cleanedAdditionalFilters.filters.price_range) {
+            cleanedAdditionalFilters.filters.price_range = cleanedAdditionalFilters.filters.price_range.map((value) => Number(value));
+          }
+        }
+
+        if (cleanedAdditionalFilters.pagination) {
+          /** If a key exists, it means there definitely is a value, so just convert it to a number */
+          if (cleanedAdditionalFilters.pagination.page) {
+            cleanedAdditionalFilters.pagination.page = Number(cleanedAdditionalFilters.pagination.page);
+          }
+          if (cleanedAdditionalFilters.pagination.limit) {
+            cleanedAdditionalFilters.pagination.limit = Number(cleanedAdditionalFilters.pagination.limit);
+          }
+        }
+
+        /** Query the inventory with additional filters */
+        const response = await getInventoryWithFilters(cleanedAdditionalFilters);
+        if (response.status !== 200) {
+          throw new Error(response.message);
+        }
+
+        /** Get the categories */
+        if (response.data && response.data.items.length > 0) {
+          const categories = response.data.items.map((item) => item.category);
+          setCategories([...new Set(categories)]);
+        } else {
+          setCategories([]);
+        }
+
+        /** Return the data */
+        return response.data ?? { items: [], total_price: 0 };
       } else {
-        setCategories([]);
-      }
+        /** Clean the filters */
+        const cleanedFilters = cleanObject(defaultFilters);
 
-      /** Return the data */
-      return response.data ?? { items: [], total_price: 0 };
+        /** Query the inventory */
+        const response = await getInventory(cleanedFilters);
+        if (response.status !== 200) {
+          throw new Error(response.message);
+        }
+
+        /** Get the categories */
+        if (response.data && response.data.items.length > 0) {
+          const categories = response.data.items.map((item) => item.category);
+          setCategories([...new Set(categories)]);
+        } else {
+          setCategories([]);
+        }
+
+        /** Return the data */
+        return response.data ?? { items: [], total_price: 0 };
+      }
     },
   });
 
@@ -84,26 +166,23 @@ export const Inventory = (props: InventoryProps) => {
 
   /** Handlers */
   const handleOnDateChange = (key: string, dateStr: string) => {
-    setFilters((prev) => ({ ...prev, [key]: dateStr }));
+    setDefaultFilters((prev) => ({ ...prev, [key]: dateStr }));
   };
 
   const handleOnMenuItemClick = (value: string) => {
-    /** Toggle the category if the same item is clicked */
-    if (filters.category === value) {
-      setFilters((prev) => ({ ...prev, category: "" }));
-    } else {
-      setFilters((prev) => ({ ...prev, category: value }));
+    if (defaultFilters.category === value) {
+      setDefaultFilters((prev) => ({ ...prev, category: "" }));
     }
   };
 
-  // const handleOnMenuItemClick = (key: string, value: string) => {
-  //   setFilters((prev) => ({ ...prev, [key]: value }));
-  // }
+  /** Effects */
+  useEffect(() => {
+    setAdditionalFilters((prev) => ({ ...prev, ...defaultFilters, filters: { ...prev.filters, category: defaultFilters.category } }));
+  }, [defaultFilters]);
 
-  // const handleOnCategoriesChange = (e: SelectChangeEvent<string[]>) => {
-  //   let categories = e.target.value as string[];
-  //   setFilters((prev) => ({ ...prev, categories }));
-  // };
+  useEffect(() => {
+    setDefaultFilters((prev) => ({ ...prev, category: additionalFilters.filters?.category }));
+  }, [additionalFilters.filters?.category]);
 
   return (
     <>
@@ -160,9 +239,8 @@ export const Inventory = (props: InventoryProps) => {
                 label="Search by start date"
                 format={"YYYY-MM-DD HH:mm:ss"}
                 views={["year", "month", "day", "hours", "minutes", "seconds"]}
-                value={filters.dt_from ? dayjs(filters.dt_from) : null}
+                value={defaultFilters.dt_from ? dayjs(defaultFilters.dt_from) : null}
                 onChange={(date) => handleOnDateChange("dt_from", dayjs(date).format("YYYY-MM-DD HH:mm:ss Z"))}
-                onClose={() => refetch()}
                 slotProps={{
                   popper: {
                     sx: {
@@ -184,9 +262,8 @@ export const Inventory = (props: InventoryProps) => {
                 label="Search by end date"
                 format={"YYYY-MM-DD HH:mm:ss"}
                 views={["year", "month", "day", "hours", "minutes", "seconds"]}
-                value={filters.dt_to ? dayjs(filters.dt_to) : null}
+                value={defaultFilters.dt_to ? dayjs(defaultFilters.dt_to) : null}
                 onChange={(date) => handleOnDateChange("dt_to", dayjs(date).format("YYYY-MM-DD HH:mm:ss Z"))}
-                onClose={() => refetch()}
                 slotProps={{
                   popper: {
                     sx: {
@@ -211,11 +288,13 @@ export const Inventory = (props: InventoryProps) => {
                 className="flex min-w-[180px] flex-row"
                 name="category"
                 size="small"
-                value={filters.category}
+                value={defaultFilters.category}
+                onChange={(e) => {
+                  setDefaultFilters((prev) => ({ ...prev, category: e.target.value }));
+                }}
                 // value={filters.categories}
                 // onChange={handleOnCategoriesChange}
                 // multiple
-                onClose={() => refetch()}
                 displayEmpty
                 renderValue={(selected) => (
                   <Box className="flex flex-row gap-2">
@@ -224,19 +303,61 @@ export const Inventory = (props: InventoryProps) => {
                   </Box>
                 )}
               >
-                <MenuItem value="" onClick={() => handleOnMenuItemClick("")}>
-                  <Checkbox checked={filters.category === ""} />
+                <MenuItem value="">
+                  <Checkbox checked={defaultFilters.category === ""} />
                   All
                 </MenuItem>
                 {categories.map((category, index) => (
                   <MenuItem key={index} value={category} onClick={() => handleOnMenuItemClick(category)}>
                     {/* <Checkbox checked={filters.categories?.includes(category)} /> */}
-                    <Checkbox checked={filters.category === category} />
+                    <Checkbox checked={defaultFilters.category === category} />
                     {category}
                   </MenuItem>
                 ))}
               </Select>
             </Box>
+          </Box>
+          {/** Additional Filters */}
+          <Box className="flex flex-row items-center gap-2">
+            <Button variant="contained" onClick={() => setOpenAdditionalFilters(true)}>
+              Additional Filters
+            </Button>
+            <AdditionalFiltersDialog
+              open={openAdditionalFilters}
+              availableCategories={categories}
+              additionalFilters={additionalFilters}
+              fnSetAdditionalFilters={setAdditionalFilters}
+              fnOnSubmit={() => {
+                setUseAdditionalFilters(true);
+                setOpenAdditionalFilters(false);
+              }}
+              fnOnClose={() => setOpenAdditionalFilters(false)}
+            />
+            <Button
+              variant="contained"
+              onClick={() => {
+                setUseAdditionalFilters(false);
+                setAdditionalFilters({
+                  dt_from: "",
+                  dt_to: "",
+                  filters: {
+                    name: "",
+                    category: "",
+                    price_range: ["", ""],
+                  },
+                  pagination: {
+                    page: "",
+                    limit: "",
+                  },
+                  sort: {
+                    field: "",
+                    order: "",
+                  },
+                });
+              }}
+            >
+              Reset Additional Filters
+            </Button>
           </Box>
         </Box>
         {/** Table */}
@@ -245,12 +366,13 @@ export const Inventory = (props: InventoryProps) => {
             <Box className="flex grow flex-col items-center justify-center gap-2">
               {/** We don't want to expose the internal error messages so we just show a generic message */}
               <Typography className="text-red-500">An error has occurred. Please try again later.</Typography>
+              {process.env.NODE_ENV === "development" && <Typography className="text-red-500">Error: {error.message} </Typography>}
               <Button variant="outlined" onClick={() => refetch()}>
                 Click to Retry
               </Button>
             </Box>
           ) : (
-            <InventoryTable data={data} isLoading={isLoading} />
+            <InventoryTable data={data} isFetching={isFetching} />
           )}
         </Box>
       </Box>

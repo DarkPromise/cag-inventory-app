@@ -1,13 +1,14 @@
 "use server";
 
 import "server-only";
-import { InventoryItem, ServerActionResponse } from "../../../types/Common.ts";
+import { ServerActionResponse } from "../../../types/Common.ts";
 import _ from "lodash";
 import { getDynamoDBDocumentClient } from "../../../lib/aws/dynamodb/getDynamoDBDocumentClient.ts";
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { toISO8601Date } from "../../../utils/toISO8601Date.ts";
 import { getInventory } from "./getInventory.ts";
 import { v4 } from "uuid";
+import { InventoryItem } from "../types/InventoryTypes.ts";
 
 /**
  * Add Item Action
