@@ -5,6 +5,7 @@ import { getDynamoDBDocumentClient } from "../../../lib/aws/dynamodb/getDynamoDB
 import { paginateScan, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { ServerActionResponse } from "../../../types/Common.ts";
 import { InventoryFilters, InventoryData, InventoryItem } from "../types/InventoryTypes.ts";
+import _ from "lodash";
 
 /** IMPORTANT:
  *  It is generally better to use QueryTables instead of Scan for large tables
@@ -14,7 +15,15 @@ import { InventoryFilters, InventoryData, InventoryItem } from "../types/Invento
 export const getInventory = async ({ dt_from, dt_to, category }: InventoryFilters = {}): Promise<ServerActionResponse<InventoryData>> => {
   /** Validation */
   if (dt_from && dt_to) {
-    if (new Date(dt_from) > new Date(dt_to)) {
+    const dateFrom = new Date(dt_from);
+    const dateTo = new Date(dt_to);
+    if (!_.isDate(dateFrom) || !_.isDate(dateTo) || _.isNaN(dateFrom.getTime()) || _.isNaN(dateTo.getTime())) {
+      return {
+        status: 400,
+        message: `[getInventory] Bad Request: Invalid date format`,
+      };
+    }
+    if (dateFrom > dateTo) {
       return {
         status: 400,
         message: `[getInventory] Bad Request: dt_from is greater than dt_to`,

@@ -16,7 +16,12 @@ export const getDynamoDBDocumentClient = () => {
     const ddbDocumentClient = createDynamoDBDocumentClient(ddbClient);
     return ddbDocumentClient;
   } else if (process.env.NODE_ENV === "production") {
-    const ddbClient = createDynamoDBClient();
+    const ddbClient = createDynamoDBClient({
+      region: process.env.AWS_REGION,
+      ddbConfig: {
+        endpoint: process.env.AWS_DYNAMODB_ENDPOINT,
+      },
+    });
     const ddbDocumentClient = createDynamoDBDocumentClient(ddbClient);
     return ddbDocumentClient;
   } else {

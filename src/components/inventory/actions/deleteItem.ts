@@ -24,13 +24,15 @@ export const deleteItem = async (id: string): Promise<ServerActionResponse<Inven
     Key: {
       id: id,
     },
+    ReturnValues: "ALL_OLD", // Optional, but we can use this to get the old item and check if an item is deleted
   });
 
   try {
-    await ddbdClient.send(deleteCommand);
+    const response = await ddbdClient.send(deleteCommand);
     return {
       status: 200,
       message: `[deleteItem] Success`,
+      data: response.Attributes as InventoryItem,
     };
   } catch (error) {
     return {

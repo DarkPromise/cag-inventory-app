@@ -25,6 +25,18 @@ export interface InventoryItem {
 }
 
 /**
+ * Schema for InventoryItem
+ */
+export const InventoryItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  category: z.string(),
+  price: z.coerce.number(),
+  created_dt: z.string(),
+  last_updated_dt: z.string(),
+});
+
+/**
  * @interface
  * @name InventoryData
  * @description Interface for inventory data

@@ -33,6 +33,8 @@ git clone https://github.com/darkpromise/cag-inventory-app.git
 
 ```
 TABLE_NAME="Inventory"
+AWS_REGION="localhost"
+AWS_DYNAMODB_ENDPOINT="http://localhost:8000"
 ```
 
 ## Installation

@@ -4,7 +4,7 @@ import "server-only";
 import { ServerActionResponse } from "../../../types/Common.ts";
 import { getDynamoDBDocumentClient } from "../../../lib/aws/dynamodb/getDynamoDBDocumentClient.ts";
 import { UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { InventoryItem } from "../types/InventoryTypes.ts";
+import { InventoryItem, InventoryItemSchema } from "../types/InventoryTypes.ts";
 
 export const editItem = async (id: string, data: Partial<InventoryItem>): Promise<ServerActionResponse<InventoryItem>> => {
   /** Validation */
@@ -52,6 +52,7 @@ export const editItem = async (id: string, data: Partial<InventoryItem>): Promis
       data: response.Attributes as InventoryItem,
     };
   } catch (error) {
+    console.error("[editItem] Error", error);
     return {
       status: 500,
       message: `[editItem] Internal Server Error`,

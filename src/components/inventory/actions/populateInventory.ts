@@ -7,7 +7,7 @@ import { addItem } from "./addItem.ts";
 
 export const populateInventory = async (count: number): Promise<ServerActionResponse> => {
   /** DEVELOPMENT ONLY */
-  if (process.env.NODE_ENV !== "development") {
+  if (process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test") {
     return {
       status: 403,
       message: `[populateInventory] Forbidden`,

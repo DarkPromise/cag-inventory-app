@@ -27,6 +27,13 @@ export const addItem = async (name: string, price: number, category: string, id?
     };
   }
 
+  if (_.isNaN(price)) {
+    return {
+      status: 400,
+      message: `[addItem] Price must be a proper number`,
+    };
+  }
+
   /** Get the dynamodb document client */
   const ddbdClient = getDynamoDBDocumentClient();
 

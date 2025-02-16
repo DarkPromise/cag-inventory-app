@@ -9,7 +9,7 @@ export const clearInventory = async (): Promise<ServerActionResponse> => {
   /** Clear Inventory
    *  This action is only available in development mode
    */
-  if (process.env.NODE_ENV !== "development") {
+  if (process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test") {
     return {
       status: 403,
       message: `[clearInventory] Forbidden`,

@@ -14,7 +14,12 @@ export const getDynamoDBClient = () => {
     });
     return ddbClient;
   } else if (process.env.NODE_ENV === "production") {
-    const ddbClient = createDynamoDBClient();
+    const ddbClient = createDynamoDBClient({
+      region: process.env.AWS_REGION,
+      ddbConfig: {
+        endpoint: process.env.AWS_DYNAMODB_ENDPOINT,
+      },
+    });
     return ddbClient;
   } else {
     throw new Error("[getDynamoDBClient] Invalid NODE_ENV");

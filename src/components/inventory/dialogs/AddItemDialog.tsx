@@ -5,7 +5,8 @@ import { addItemFA } from "../actions/addItem.ts";
 import { FormProvider, useForm } from "react-hook-form";
 import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from "@mui/material";
 import FormInput from "../../form/FormInput.tsx";
-import { InventoryItem } from "../types/InventoryTypes.ts";
+import { InventoryItem, InventoryItemSchema } from "../types/InventoryTypes.ts";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 export interface AddItemDialogProps {
   open: boolean;
@@ -21,6 +22,7 @@ export const AddItemDialog = (props: AddItemDialogProps) => {
 
   /** Form */
   const form = useForm<InventoryItem>({
+    resolver: zodResolver(InventoryItemSchema),
     defaultValues: {
       name: "",
       price: 0,

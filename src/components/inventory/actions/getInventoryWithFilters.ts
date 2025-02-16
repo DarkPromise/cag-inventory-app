@@ -4,7 +4,6 @@ import "server-only";
 import { getDynamoDBDocumentClient } from "../../../lib/aws/dynamodb/getDynamoDBDocumentClient.ts";
 import { paginateScan, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import _ from "lodash";
-import { cleanObject } from "../utils/cleanObject.ts";
 import { ServerActionResponse } from "../../../types/Common.ts";
 import { AdditionalInventoryFilters, InventoryData, InventoryItem } from "../types/InventoryTypes.ts";
 
@@ -16,14 +15,20 @@ import { AdditionalInventoryFilters, InventoryData, InventoryItem } from "../typ
 export const getInventoryWithFilters = async ({ dt_from, dt_to, filters, pagination, sort }: AdditionalInventoryFilters = {}): Promise<
   ServerActionResponse<InventoryData>
 > => {
-  /** Validation
-   *  Again, some validation schema should be used to ensure correct data types
-   */
+  /** Validation */
   if (dt_from && dt_to) {
-    if (new Date(dt_from) > new Date(dt_to)) {
+    const dateFrom = new Date(dt_from);
+    const dateTo = new Date(dt_to);
+    if (!_.isDate(dateFrom) || !_.isDate(dateTo) || _.isNaN(dateFrom.getTime()) || _.isNaN(dateTo.getTime())) {
       return {
         status: 400,
-        message: `[getInventoryWithFilters] Bad Request: dt_from is greater than dt_to`,
+        message: `[getInventory] Bad Request: Invalid date format`,
+      };
+    }
+    if (dateFrom > dateTo) {
+      return {
+        status: 400,
+        message: `[getInventory] Bad Request: dt_from is greater than dt_to`,
       };
     }
   }
@@ -43,6 +48,12 @@ export const getInventoryWithFilters = async ({ dt_from, dt_to, filters, paginat
         return {
           status: 400,
           message: `[getInventoryWithFilters] Bad Request: price_range values must be numbers`,
+        };
+      }
+      if (filters.price_range[0] > filters.price_range[1]) {
+        return {
+          status: 400,
+          message: `[getInventoryWithFilters] Bad Request: price_range from must be less than price_range to`,
         };
       }
     }
