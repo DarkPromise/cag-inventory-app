@@ -141,7 +141,14 @@ docker compose up -d --wait
 3. Start the application:
 
 ```bash
-npm run dev
+npm run dev # For development
+```
+
+or
+
+```bash
+npm run build # For production
+npm run start # For production
 ```
 
 The application will be available at http://localhost:3000
@@ -164,7 +171,7 @@ docker compose down
 
 - Testing is done using jest
 
-- Run backend tests: `npm run tests`
+- Run tests: `npm run test`
 
 ## Troubleshooting
 
