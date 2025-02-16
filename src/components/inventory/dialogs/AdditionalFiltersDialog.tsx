@@ -144,7 +144,7 @@ export const AdditionalFiltersDialog = (props: AdditionalFiltersDialogProps) => 
                     control={form.control}
                     name="pagination.page"
                     component={
-                      <TextField className="min-w-[120px]" variant="outlined" type="text" placeholder="Max Pages" autoComplete="off" size="small" />
+                      <TextField className="min-w-[120px]" variant="outlined" type="text" placeholder="Page no." autoComplete="off" size="small" />
                     }
                     fnOnChange={(e) => {
                       /** Custom validator */
