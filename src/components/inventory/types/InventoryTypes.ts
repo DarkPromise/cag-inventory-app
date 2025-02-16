@@ -3,6 +3,7 @@
  */
 import { z } from "zod";
 import { zodStringNumber } from "../../form/types/CustomValidationTypes.ts";
+import { cleanObject } from "../utils/cleanObject.ts";
 
 /**
  * @interface
@@ -108,25 +109,30 @@ export interface AdditionalInventoryFilters extends Omit<InventoryFilters, "cate
 /**
  * Schema for AdditionalInventoryFilters
  */
-export const AdditionalInventoryFiltersSchema = z.object({
-  ...InventoryFiltersSchema.shape,
-  filters: z
-    .object({
-      name: z.string().optional(),
-      category: z.string().optional(),
-      price_range: z.array(zodStringNumber.optional()).refine((value) => value.length === 0 || value.length === 2),
-    })
-    .optional(),
-  pagination: z
-    .object({
-      page: z.coerce.number().optional(),
-      limit: z.coerce.number().optional(),
-    })
-    .optional(),
-  sort: z
-    .object({
-      field: z.string().optional(),
-      order: z.string().optional(),
-    })
-    .optional(),
-});
+export const AdditionalInventoryFiltersSchema = z.preprocess(
+  (data: any) => cleanObject(data),
+  z.object({
+    ...InventoryFiltersSchema.shape,
+    filters: z
+      .object({
+        name: z.string().optional(),
+        category: z.string().optional(),
+        price_range: z.array(zodStringNumber.optional()).refine((value) => value.length === 0 || value.length === 2, {
+          message: "Price range must have 0 or 2 values",
+        }),
+      })
+      .optional(),
+    pagination: z
+      .object({
+        page: z.coerce.number().optional(),
+        limit: z.coerce.number().optional(),
+      })
+      .optional(),
+    sort: z
+      .object({
+        field: z.string().optional(),
+        order: z.string().optional(),
+      })
+      .optional(),
+  }),
+);

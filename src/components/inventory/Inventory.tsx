@@ -9,11 +9,18 @@ import { Box, Button, Checkbox, Chip, MenuItem, Select, Typography } from "@mui/
 import { DesktopDateTimePicker } from "@mui/x-date-pickers";
 import dayjs from "dayjs";
 import clearInventory from "./actions/clearInventory.ts";
-import { cleanObject, cleanObject2 } from "./utils/cleanObject.ts";
+import { cleanObject } from "./utils/cleanObject.ts";
 import populateInventory from "./actions/populateInventory.ts";
 import { getInventoryWithFilters } from "./actions/getInventoryWithFilters.ts";
 import AdditionalFiltersDialog from "./dialogs/AdditionalFiltersDialog.tsx";
-import { InventoryItem, InventoryFilters, AdditionalInventoryFilters, InventoryData } from "./types/InventoryTypes.ts";
+import {
+  InventoryItem,
+  InventoryFilters,
+  AdditionalInventoryFilters,
+  InventoryData,
+  AdditionalInventoryFiltersSchema,
+  InventoryFiltersSchema,
+} from "./types/InventoryTypes.ts";
 
 /** Based on the requirements, the inventory system needs to have the following features:
  *  1. CRU Operations (Add, Read, Update)
@@ -99,29 +106,13 @@ export const Inventory = (props: InventoryProps) => {
       if (useAdditionalFilters) {
         /** Clean the additional filters */
         const cleanedAdditionalFilters = cleanObject(additionalFilters);
-
-        /** Cast the filters to its correct values
-         *  Just so that the request payload matches the requirements and its types...
-         *  We should just use some sort of schema resolver prior to this, eg. zod or yup
-         */
-        if (cleanedAdditionalFilters.filters) {
-          if (cleanedAdditionalFilters.filters.price_range) {
-            cleanedAdditionalFilters.filters.price_range = cleanedAdditionalFilters.filters.price_range.map((value) => Number(value));
-          }
-        }
-
-        if (cleanedAdditionalFilters.pagination) {
-          /** If a key exists, it means there definitely is a value, so just convert it to a number */
-          if (cleanedAdditionalFilters.pagination.page) {
-            cleanedAdditionalFilters.pagination.page = Number(cleanedAdditionalFilters.pagination.page);
-          }
-          if (cleanedAdditionalFilters.pagination.limit) {
-            cleanedAdditionalFilters.pagination.limit = Number(cleanedAdditionalFilters.pagination.limit);
-          }
+        const result = AdditionalInventoryFiltersSchema.safeParse(cleanedAdditionalFilters);
+        if (!result.success) {
+          throw new Error("Invalid Additional Filters");
         }
 
         /** Query the inventory with additional filters */
-        const response = await getInventoryWithFilters(cleanedAdditionalFilters);
+        const response = await getInventoryWithFilters(result.data as AdditionalInventoryFilters);
         if (response.status !== 200) {
           throw new Error(response.message);
         }
@@ -139,9 +130,13 @@ export const Inventory = (props: InventoryProps) => {
       } else {
         /** Clean the filters */
         const cleanedFilters = cleanObject(defaultFilters);
+        const result = InventoryFiltersSchema.safeParse(cleanedFilters);
+        if (!result.success) {
+          throw new Error("Invalid Filters");
+        }
 
         /** Query the inventory */
-        const response = await getInventory(cleanedFilters);
+        const response = await getInventory(result.data);
         if (response.status !== 200) {
           throw new Error(response.message);
         }
@@ -367,7 +362,34 @@ export const Inventory = (props: InventoryProps) => {
               {/** We don't want to expose the internal error messages so we just show a generic message */}
               <Typography className="text-red-500">An error has occurred. Please try again later.</Typography>
               {process.env.NODE_ENV === "development" && <Typography className="text-red-500">Error: {error.message} </Typography>}
-              <Button variant="outlined" onClick={() => refetch()}>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setDefaultFilters({
+                    dt_from: "",
+                    dt_to: "",
+                    category: "",
+                  });
+                  setUseAdditionalFilters(false);
+                  setAdditionalFilters({
+                    dt_from: "",
+                    dt_to: "",
+                    filters: {
+                      name: "",
+                      category: "",
+                      price_range: ["", ""],
+                    },
+                    pagination: {
+                      page: "",
+                      limit: "",
+                    },
+                    sort: {
+                      field: "",
+                      order: "",
+                    },
+                  });
+                }}
+              >
                 Click to Retry
               </Button>
             </Box>

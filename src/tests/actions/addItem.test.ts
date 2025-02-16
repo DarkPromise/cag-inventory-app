@@ -20,7 +20,8 @@ describe("Server Action: addItem()", () => {
   it("should return an item with 200 status if all required fields are provided", async () => {
     const response = await addItem("test-add-item", 0, "fake-add-item-category", "fake-add-item-id");
     expect(response.status).toBe(200);
-    expect(response.data).toBeUndefined();
+    expect(response.data).toBeDefined();
+    expect(response.data).toBe("fake-add-item-id");
   });
 
   it("should update an item if it already exists with the same name", async () => {

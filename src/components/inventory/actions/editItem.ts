@@ -52,7 +52,6 @@ export const editItem = async (id: string, data: Partial<InventoryItem>): Promis
       data: response.Attributes as InventoryItem,
     };
   } catch (error) {
-    console.error("[editItem] Error", error);
     return {
       status: 500,
       message: `[editItem] Internal Server Error`,

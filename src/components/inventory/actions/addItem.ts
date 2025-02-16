@@ -101,6 +101,7 @@ export const addItem = async (name: string, price: number, category: string, id?
     return {
       status: 200,
       message: `[addItem] Success`,
+      data: putCommand.input.Item!.id, // Return the id of the item
     };
   } catch (error) {
     console.error("[addItem] Error", error);

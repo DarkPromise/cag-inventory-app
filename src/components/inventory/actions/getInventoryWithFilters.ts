@@ -171,6 +171,14 @@ export const getInventoryWithFilters = async ({ dt_from, dt_to, filters, paginat
           }
           currentPage++;
         }
+      } else {
+        /** Return the first page */
+        for await (const page of paginatedScan) {
+          if (page.Items) {
+            results.push(...(page.Items as InventoryItem[]));
+            break;
+          }
+        }
       }
     } else {
       /** Return all the items */
